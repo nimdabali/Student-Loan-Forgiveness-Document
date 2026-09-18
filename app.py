@@ -94,9 +94,11 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200, json.dumps({'fields': schema(), 'token': TOKEN}).encode(), 'application/json')
         elif self.path == '/original.pdf':
             self.respond(200, PDF.read_bytes(), 'application/pdf')
-        elif self.path in ['/', '/app.js', '/style.css']:
-            filename, kind = {'/': ('index.html', 'text/html; charset=utf-8'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css')}[self.path]
-            self.respond(200, (ROOT / filename).read_bytes(), kind)
+        elif self.path in ['/', '/app.js', '/style.css', '/pdf-browser.js', '/schema.json', '/template.pdf', '/Consolidation-en-us.pdf', '/vendor/pdf-lib.min.js']:
+            import mimetypes
+            filename = 'index.html' if self.path == '/' else self.path.lstrip('/')
+            kind = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+            self.respond(200, (ROOT / 'docs' / filename).read_bytes(), kind)
         else:
             self.respond(404, b'Not found', 'text/plain')
 
@@ -115,6 +117,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    from build_pages import build
+    build()
     try:
         server = ThreadingHTTPServer(('127.0.0.1', 8765), Handler)
     except OSError as error:

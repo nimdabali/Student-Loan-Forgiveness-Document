@@ -1,18 +1,23 @@
 # Consolidation Form Companion
 
-Double-click **Start App.bat** and open http://127.0.0.1:8765 if the browser does not open automatically. Keep the command window open while using the app; close it to stop the server.
+Public app: https://nimdabali.github.io/Student-Loan-Forgiveness-Document/
 
-Requires Python and PyMuPDF (already available on the development computer). On another computer run `python -m pip install -r requirements.txt` first.
+The GitHub Pages version runs entirely in the visitor's browser. Entered details are not uploaded to a PDF server. Saved profiles stay in that browser and are stored unencrypted. SSN saving is optional. Localhost profiles do not automatically transfer to the public website.
 
-1. Enter your borrower details, references, and loans.
-2. Give your profile a name and click **Save profile**. Next time select it from **Saved profiles**.
-3. Update any changed details and download a filled copy of the original 34-page PDF.
-4. The borrower?s full name appears on the signature line, and all SSN fields show the full SSN (123-45-6789) or mask a four-digit entry (XXX-XX-6789). Review the PDF and original instructions and complete any separate required forms.
+## Use the app
 
-The app runs on this computer with no external services. Profiles are saved unencrypted in this browser under this local address; SSNs are excluded unless you check **Include entered SSN when saving**. Browser data clearing removes saved profiles. Downloaded PDFs contain the entered personal details. The server does not write entered data to disk. **New** clears the current form, and **Delete saved** removes the selected saved profile.
+Enter borrower, reference, and loan details. Save a named profile to reuse them. Download the filled PDF and review the original instructions and any separate required forms. Full SSNs display as 123-45-6789; four-digit entries display as XXX-XX-6789. The borrower name is printed on the signature line. The original 34-page PDF is preserved.
 
-All 131 unique source fields are supported, with first name and SSN exposed separately. The source PDF aliases its first-name field to its repeated full-name field; the app resolves each occurrence independently. Downloads flatten entries onto the original pages to preserve consistent appearance, so make corrections in the app and download again. The original PDF is unchanged. Overlong entries are rejected instead of silently clipped. The app helps fill the form; it does not check application eligibility or completeness or submit the application.
+## Run locally
 
-Run verification with `python -m unittest test_app.py`.
-# Student-Loan-Forgiveness-Document
+Run `python -m pip install -r requirements.txt`, then `python app.py`, or double-click **Start App.bat**. Open http://127.0.0.1:8765 and keep the terminal open.
 
+## Update the public site
+
+1. Edit the root app files.
+2. Run `python build_pages.py` to refresh the static site in `docs/`.
+3. Commit and push the changed source files and `docs/` to `main`.
+
+GitHub Pages must be configured to publish from the `main` branch, `/docs` folder. The build copies only application assets, the blank source PDF, a blank flattened template, and field metadata. It does not publish saved profiles or test outputs.
+
+PDF generation uses the bundled pdf-lib 1.17.1 library; its license is in `vendor/pdf-lib.LICENSE.md`. Python/PyMuPDF builds the template and supports the original local API. Run `python -m unittest test_app.py` for backend checks.
