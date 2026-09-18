@@ -5,6 +5,8 @@ let fields = [], token, values = {}, section = 0, dirty = false, profiles = {};
 let sameMailingAddress = false;
 const states = 'AL:Alabama|AK:Alaska|AZ:Arizona|AR:Arkansas|CA:California|CO:Colorado|CT:Connecticut|DE:Delaware|DC:District of Columbia|FL:Florida|GA:Georgia|HI:Hawaii|ID:Idaho|IL:Illinois|IN:Indiana|IA:Iowa|KS:Kansas|KY:Kentucky|LA:Louisiana|ME:Maine|MD:Maryland|MA:Massachusetts|MI:Michigan|MN:Minnesota|MS:Mississippi|MO:Missouri|MT:Montana|NE:Nebraska|NV:Nevada|NH:New Hampshire|NJ:New Jersey|NM:New Mexico|NY:New York|NC:North Carolina|ND:North Dakota|OH:Ohio|OK:Oklahoma|OR:Oregon|PA:Pennsylvania|RI:Rhode Island|SC:South Carolina|SD:South Dakota|TN:Tennessee|TX:Texas|UT:Utah|VT:Vermont|VA:Virginia|WA:Washington|WV:West Virginia|WI:Wisconsin|WY:Wyoming|AS:American Samoa|GU:Guam|MP:Northern Mariana Islands|PR:Puerto Rico|VI:U.S. Virgin Islands'.split('|').map(s => s.split(':'));
 const isState = key => /^State(?:_\d+)?$/.test(key);
+const isSuffix = key => /^Name Suffix(?:_\d+)?$/.test(key);
+const suffixes = ['N/A', 'Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
 const isPhone = key => /^(?:(?:Alternate |Work )?Phone Number(?:_\d+)?|For help completing this form.*)$/.test(key);
 function formatPhone(value) {
   const text = value.trim();
@@ -36,7 +38,7 @@ function syncMailingAddress() {
   });
 }
 const sections = [
-  ['Your details', 'Your full name and the last four SSN digits are repeated automatically throughout the PDF.'],
+  ['Your details', 'Enter your full SSN or just the last four digits. Four digits appear as XXX-XX-1234; a full SSN appears as 123-45-6789 throughout the PDF.'],
   ['Contact & employment', 'Enter your addresses, contact details, and employer information.'],
   ['References', 'Add two adults with different addresses who do not live with you. See page 4 for the full instructions.'],
   ['Loans to consolidate', 'List each loan separately. Loan codes and instructions are on pages 5–6 of the original form.'],
@@ -88,7 +90,13 @@ function draw() {
     if (/^Mail pages|^For help/.test(f.key)) wrap.className = 'wide';
     const label = document.createElement('label'); label.htmlFor = `field-${index}`;
     label.textContent = f.label.replace(/ Row \d+$/, '').replace(/_Row_\d+$/, '');
-    const input = document.createElement(isState(f.key) ? 'select' : multiline ? 'textarea' : 'input');
+    const input = document.createElement(isState(f.key) || isSuffix(f.key) ? 'select' : multiline ? 'textarea' : 'input');
+    if (isSuffix(f.key)) {
+      input.add(new Option('Select a suffix', ''));
+      suffixes.forEach(suffix => input.add(new Option(suffix, suffix)));
+      // Keep existing profile entries available when they use another suffix.
+      if (values[f.key] && !suffixes.includes(values[f.key])) input.add(new Option(values[f.key], values[f.key]));
+    }
     if (isState(f.key)) {
       input.add(new Option('Select a state', ''));
       states.forEach(([code, name]) => input.add(new Option(`${name} (${code})`, code)));
@@ -108,7 +116,7 @@ function draw() {
         input.reportValidity();
       };
     }
-    if (f.key === 'SSN') { input.type = 'text'; input.inputMode = 'numeric'; input.maxLength = 4; input.pattern = '[0-9]{4}'; input.placeholder = 'e.g. 0123'; input.autocomplete = 'off'; }
+    if (f.key === 'SSN') { input.type = 'text'; input.inputMode = 'numeric'; input.maxLength = 11; input.pattern = '(?:[0-9]{4}|[0-9]{9}|[0-9]{3}-[0-9]{2}-[0-9]{4})'; input.placeholder = '123-45-6789 or 6789'; input.autocomplete = 'off'; }
     if (/Date of Birth|Todays Date/.test(f.key)) input.placeholder = 'mm/dd/yyyy';
     if (/Expected Grace/.test(f.key)) input.placeholder = 'mm/yyyy';
     input.oninput = () => { input.setCustomValidity(''); values[f.key] = input.value; syncMailingAddress(); dirty = true; refreshProgress(); message('Unsaved changes. Save your profile to reuse these details.'); };
@@ -136,10 +144,8 @@ $('profiles').onchange = () => {
   normalizeContactValues();
   sameMailingAddress = p.sameMailingAddress === true;
   syncMailingAddress();
-  const legacySSN = /^(?:[0-9]{9}|[0-9]{3}-[0-9]{2}-[0-9]{4})$/.test(values.SSN || '');
-  if (legacySSN) values.SSN = values.SSN.slice(-4);
-  $('profileName').value = p.name; $('saveSSN').checked = !!values.SSN; dirty = legacySSN; draw();
-  message(legacySSN ? 'Profile loaded using only the last four SSN digits. Save the profile to replace its previously saved full SSN.' : 'Profile loaded. Update any details, then download your PDF.');
+  $('profileName').value = p.name; $('saveSSN').checked = !!values.SSN; dirty = false; draw();
+  message('Profile loaded. Update any details, then download your PDF.');
 };
 $('new').onclick = () => { if (dirty && !confirm('Discard unsaved changes and start a new profile?')) return; values = {}; sameMailingAddress = false; dirty = false; $('profileName').value = ''; $('profiles').value = ''; $('saveSSN').checked = false; section = 0; draw(); message('New blank profile.'); };
 $('delete').onclick = () => {
@@ -163,7 +169,7 @@ $('download').onclick = async () => {
     const response = await fetch('/api/pdf',{method:'POST',headers:{'Content-Type':'application/json','X-App-Token':token},body:JSON.stringify(values)});
     if (!response.ok) throw new Error(await response.text());
     const url = URL.createObjectURL(await response.blob()); const a = document.createElement('a'); a.href = url; a.download = 'Consolidation-filled.pdf'; a.click(); setTimeout(() => URL.revokeObjectURL(url),60000);
-    message('PDF downloaded with your name on the signature line and the last four SSN digits. Review all entries and any separate required forms.');
+    message('PDF downloaded with your name on the signature line and your full or masked SSN. Review all entries and any separate required forms.');
   } catch (e) { message(e.message || 'Download failed. Check that the local app is running.',true); }
   finally { $('download').disabled = false; }
 };
@@ -173,7 +179,7 @@ window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); 
     const response = await fetch('/api/schema'); if (!response.ok) throw new Error('Could not load the PDF fields.');
     const data = await response.json(); token = data.token;
     fields = [{key:'First Name',label:'First name',page:2},...data.fields];
-    fields.splice(fields.findIndex(f => f.key === 'Date of Birth'),0,{key:'SSN',label:'SSN — last four digits',page:2});
+    fields.splice(fields.findIndex(f => f.key === 'Date of Birth'),0,{key:'SSN',label:'SSN - full number or last four digits',page:2});
     try { profiles = JSON.parse(localStorage.getItem(storageKey) || '{}'); if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) profiles = {}; }
     catch { profiles = {}; message('Saved profiles could not be read. You can still fill and download the form.',true); }
     listProfiles(); draw();

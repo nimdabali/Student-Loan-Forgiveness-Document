@@ -33,8 +33,12 @@ def render_pdf(values):
     if not isinstance(values, dict) or any(k not in allowed or not isinstance(v, str) or len(v) > 3000 for k, v in values.items()):
         raise ValueError('Invalid form data.')
     ssn = values.get('SSN', '').strip()
-    if ssn and not re.fullmatch(r'[0-9]{4}', ssn):
-        raise ValueError('Enter exactly the last four digits of the SSN.')
+    if ssn and not re.fullmatch(r'(?:[0-9]{4}|[0-9]{9}|[0-9]{3}-[0-9]{2}-[0-9]{4})', ssn):
+        raise ValueError('Enter the last four SSN digits or the full nine-digit SSN (123-45-6789).')
+    if len(ssn) == 4:
+        ssn = 'XXX-XX-' + ssn
+    elif len(ssn) == 9:
+        ssn = f'{ssn[:3]}-{ssn[3:5]}-{ssn[5:]}'
     name = ' '.join(values.get(k, '').strip() for k in ['First Name', 'Middle Name', 'Last Name', 'Name Suffix'] if values.get(k, '').strip().upper() not in ['', 'N/A'])
     with pymupdf.open(PDF) as doc:
         for page in doc:

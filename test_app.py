@@ -15,11 +15,19 @@ class PDFTests(unittest.TestCase):
             self.assertEqual(len(doc), 34)
             for page in list(doc)[1:14]:
                 self.assertIn('Alex Morgan Sample', page.get_text())
-                self.assertIn('0123', page.get_text())
+                self.assertIn('XXX-XX-0123', page.get_text())
             self.assertEqual(doc[1].get_textbox(pymupdf.Rect(118, 487, 572, 506)).strip(), 'Alex')
-            self.assertEqual(doc[1].get_textbox(pymupdf.Rect(185, 634, 572, 653)).strip(), '0123')
+            self.assertEqual(doc[1].get_textbox(pymupdf.Rect(185, 634, 572, 653)).strip(), 'XXX-XX-0123')
             self.assertEqual(doc[13].get_textbox(pymupdf.Rect(183, 455, 571, 474)).strip(), 'Alex Morgan Sample')
             self.assertTrue(all(not list(p.widgets() or []) for p in doc))
+
+    def test_full_ssn_formats(self):
+        for entered in ['012345678', '012-34-5678']:
+            with self.subTest(entered=entered), pymupdf.open(stream=render_pdf({'SSN': entered}), filetype='pdf') as doc:
+                for page in list(doc)[1:14]:
+                    self.assertIn('012-34-5678', page.get_text())
+                    self.assertNotIn('XXX-XX-', page.get_text())
+                self.assertEqual(doc[1].get_textbox(pymupdf.Rect(185, 634, 572, 653)).strip(), '012-34-5678')
 
     def test_every_field_filled(self):
         data = {f['key']: 'TEST' for f in schema()}
@@ -27,7 +35,7 @@ class PDFTests(unittest.TestCase):
             self.assertEqual(sum(p.get_text().count('TEST') for p in doc), len(schema()) + 14*3)
 
     def test_invalid_and_overflow_rejected(self):
-        for data in [{'SSN':'123'}, {'SSN':'123456789'}, {'SSN':'123-45-6789'}, {'SSN':'abcd'}, {'First Name':42}, {'unknown':'test'}, {'Last Name':'W'*1000}]:
+        for data in [{'SSN':'123'}, {'SSN':'12345'}, {'SSN':'12345678'}, {'SSN':'1234567890'}, {'SSN':'12-345-6789'}, {'SSN':'abcd'}, {'First Name':42}, {'unknown':'test'}, {'Last Name':'W'*1000}]:
             with self.assertRaises(ValueError):
                 render_pdf(data)
 
