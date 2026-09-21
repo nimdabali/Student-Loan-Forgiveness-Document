@@ -6,6 +6,7 @@ import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 import pymupdf
 
 ROOT = Path(__file__).resolve().parent
@@ -90,6 +91,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        self.path = urlsplit(self.path).path
         if self.path == '/api/schema':
             self.respond(200, json.dumps({'fields': schema(), 'token': TOKEN}).encode(), 'application/json')
         elif self.path == '/original.pdf':

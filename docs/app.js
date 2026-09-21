@@ -234,14 +234,24 @@ $('download').onclick = async () => {
   finally { $('download').disabled = false; }
 };
 window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
-(async () => {
+async function initializeApp() {
+  $('retryLoad').hidden = true;
+  $('uploadState').textContent = 'Loading form fields…';
   try {
-    const response = await fetch('./schema.json'); if (!response.ok) throw new Error('Could not load the PDF fields.');
+    const response = await fetch('./schema.json', {cache: 'no-store', signal: AbortSignal.timeout(15000)}); if (!response.ok) throw new Error('Could not load the PDF fields.');
     const data = await response.json(); slots = data.slots;
     fields = [{key:'First Name',label:'First name',page:2},...data.fields];
     fields.splice(fields.findIndex(f => f.key === 'Date of Birth'),0,{key:'SSN',label:'SSN - full number or last four digits',page:2});
     try { profiles = JSON.parse(localStorage.getItem(storageKey) || '{}'); if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) profiles = {}; }
     catch { profiles = {}; message('Saved profiles could not be read. You can still fill and download the form.',true); }
     listProfiles(); draw(); $('uploadText').disabled = false; $('textTemplate').disabled = false;
-  } catch(e) { message(e.message,true); $('download').disabled = true; }
-})();
+    $('download').disabled = false;
+    $('uploadState').textContent = 'Ready to upload a text file.';
+  } catch(e) {
+    message(e.message,true); $('download').disabled = true;
+    $('uploadState').textContent = `Form loading failed: ${e.message}. Check your connection and retry.`;
+    $('retryLoad').hidden = false;
+  }
+}
+$('retryLoad').onclick = initializeApp;
+initializeApp();

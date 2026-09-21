@@ -48,7 +48,7 @@ class ServerTests(unittest.TestCase):
         idle = socket.create_connection(server.server_address)
         base = f'http://127.0.0.1:{server.server_port}'
         try:
-            for path in ['/', '/app.js', '/style.css', '/api/schema']:
+            for path in ['/', '/app.js', '/app.js?v=test-version', '/text-import.js?v=test-version', '/style.css', '/api/schema']:
                 with urllib.request.urlopen(base + path, timeout=3) as response:
                     self.assertEqual(response.status, 200)
                     self.assertTrue(response.read())

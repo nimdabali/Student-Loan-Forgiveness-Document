@@ -1,5 +1,6 @@
 """Build the static GitHub Pages site with no user data or Python runtime."""
 import json
+import hashlib
 import shutil
 from pathlib import Path
 import pymupdf
@@ -26,6 +27,12 @@ def build():
         slots.append({'key': "Borrower's Name", 'page': 13, 'rect': [181, 454, 573, 474]})
         doc.save(DEST / 'template.pdf', garbage=4, deflate=True)
     (DEST / 'schema.json').write_text(json.dumps({'fields': schema(), 'slots': slots}), encoding='utf-8')
+    # A changed asset gets a new URL, preventing new markup from using cached JS.
+    html = (DEST / 'index.html').read_text(encoding='utf-8')
+    for filename in ['style.css', 'app.js', 'text-import.js', 'pdf-browser.js', 'vendor/pdf-lib.min.js']:
+        version = hashlib.sha256((DEST / filename).read_bytes()).hexdigest()[:12]
+        html = html.replace(f'./{filename}"', f'./{filename}?v={version}"')
+    (DEST / 'index.html').write_text(html, encoding='utf-8')
     (DEST / '.nojekyll').touch()
 
 
