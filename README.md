@@ -10,6 +10,12 @@ Enter borrower, reference, and loan details. Save a named profile to reuse them.
 
 ## Run locally
 
+Use **Upload text file** to import one borrower's `.txt` file into a new, unsaved profile. Each line should use `Field name: value` (or `Field name = value`). Common labels include `First Name`, `Last Name`, `DOB`, `SSN`, `Email`, `Phone`, `Address`, `City`, `State`, and `Zip`. Use **Download text template** for all supported fields, including references and loans. Files are processed in the browser. Unrecognized or invalid lines are reported; repeated fields are rejected to avoid combining users. Review the results and save a separate named profile for each user. Free-form prose is not supported.
+
+Run `node test_text_import.js` for importer checks.
+
+NSLDS student-aid `.txt` exports are also supported directly. The importer fills borrower contact details and lists loans with outstanding principal or interest. Select **Add to loans to consolidate** or **Add to other loans** for each desired loan. Zero-balance loans are omitted. Imported amounts are reported principal plus interest, not current payoff quotes. Verify the amounts and enter the application’s loan codes and servicer account numbers manually; award IDs are not substituted for account numbers. Missing SSN, birth date, employer, and reference information stays blank. Import results are temporary; save the profile after adding loans to retain the populated form fields.
+
 Run `python -m pip install -r requirements.txt`, then `python app.py`, or double-click **Start App.bat**. Open http://127.0.0.1:8765 and keep the terminal open.
 
 ## Update the public site

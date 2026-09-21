@@ -125,6 +125,64 @@ function draw() {
   $('back').disabled = section === 0; $('next').disabled = section === sections.length-1; refreshProgress();
 }
 $('form').onsubmit = e => e.preventDefault();
+function showImportedLoans(loans = []) {
+  $('importLoans').replaceChildren();
+  loans.forEach(loan => {
+    const row = document.createElement('div'); row.className = 'import-loan';
+    const label = document.createElement('p');
+    label.textContent = `${loan.description} — reported balance $${loan.balance} (${loan.date}). ${loan.servicer || 'Current servicer unavailable; enter manually.'}`;
+    row.append(label);
+    for (const [caption, target, prefix, amount] of [['Add to loans to consolidate', 3, 15, '18 Estimated Payoff Amount'], ['Add to other loans', 4, 20, '23 Current Balance']]) {
+      const button = document.createElement('button'); button.className = 'secondary'; button.textContent = caption;
+      button.onclick = () => {
+        const candidates = fields.filter(f => f.key.startsWith(`${prefix} `));
+        const available = candidates.map(f => f.key.match(/Row(\d+)/)?.[1]).filter(Boolean).sort((a,b) => a-b).find(n =>
+          fields.filter(f => group(f) === target && f.key.endsWith(`Row${n}`)).every(f => !values[f.key]?.trim()));
+        if (!available) { message('No empty loan rows remain in this section. Review additional loans separately.', true); return; }
+        const servicer = fields.find(f => group(f) === target && /HolderServicer/.test(f.key) && f.key.endsWith(`Row${available}`));
+        values[`${amount}Row${available}`] = loan.balance;
+        if (servicer) values[servicer.key] = loan.servicer;
+        row.querySelectorAll('button').forEach(b => b.disabled = true);
+        label.textContent += ` Added to ${sections[target][0]}, loan ${available}.`;
+        dirty = true; section = target; draw();
+        message('Loan added. Enter the form’s loan code and servicer account number, and verify the balance before downloading.');
+      };
+      row.append(button);
+    }
+    $('importLoans').append(row);
+  });
+}
+$('uploadText').onclick = () => $('textFile').click();
+$('textTemplate').onclick = () => {
+  const text = '# One borrower per file. Fill the fields you need; leave other lines blank.\n' + fields.map(f => `${f.key}: `).join('\n');
+  const url = URL.createObjectURL(new Blob([text], {type: 'text/plain;charset=utf-8'}));
+  const link = document.createElement('a'); link.href = url; link.download = 'borrower-details-template.txt'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+$('textFile').onchange = async () => {
+  const file = $('textFile').files[0];
+  if (!file) return;
+  $('uploadText').disabled = true;
+  try {
+    if (!/\.txt$/i.test(file.name)) throw new Error('Please choose a .txt file.');
+    if (file.size > 500000) throw new Error('Please choose a text file smaller than 500 KB.');
+    const result = parseTextDetails(await file.text(), fields);
+    if (dirty && !confirm('Replace unsaved entries with this borrower’s details? Saved profiles will remain available.')) return;
+    values = result.values; normalizeContactValues(); sameMailingAddress = false;
+    $('profiles').value = ''; $('saveSSN').checked = false;
+    $('profileName').value = [values['First Name'], values['Last Name']].filter(Boolean).join(' ') || file.name.replace(/\.txt$/i, '');
+    section = 0; dirty = true; draw();
+    const summary = `Imported ${Object.values(values).filter(v => v.trim()).length} fields from ${file.name}.`;
+    $('importReport').textContent = [summary, ...(result.notes || []), ...result.issues].join('\n');
+    showImportedLoans(result.loans);
+    $('importReport').parentElement.open = result.issues.length > 0 || !!result.notes;
+    message(`${summary} ${result.issues.length ? `${result.issues.length} import issues; see import results. ` : ''}Review the details${result.loans?.length ? ' and choose loans below' : ''}, then save this user’s profile.`, result.issues.length > 0);
+  } catch (error) {
+    $('importReport').textContent = error.message;
+    $('importReport').parentElement.open = true;
+    message(error.message, true);
+  } finally { $('textFile').value = ''; $('uploadText').disabled = false; }
+};
 $('back').onclick = () => { section--; draw(); };
 $('next').onclick = () => { section++; draw(); };
 $('save').onclick = () => {
@@ -140,6 +198,7 @@ $('save').onclick = () => {
 $('profiles').onchange = () => {
   if (dirty && !confirm('Discard unsaved changes and load this profile?')) { $('profiles').value = ''; return; }
   const p = profiles[$('profiles').value]; if (!p) return;
+  showImportedLoans(); $('importReport').textContent = 'Saved profile loaded.';
   values = {...p.values};
   normalizeContactValues();
   sameMailingAddress = p.sameMailingAddress === true;
@@ -147,7 +206,7 @@ $('profiles').onchange = () => {
   $('profileName').value = p.name; $('saveSSN').checked = !!values.SSN; dirty = false; draw();
   message('Profile loaded. Update any details, then download your PDF.');
 };
-$('new').onclick = () => { if (dirty && !confirm('Discard unsaved changes and start a new profile?')) return; values = {}; sameMailingAddress = false; dirty = false; $('profileName').value = ''; $('profiles').value = ''; $('saveSSN').checked = false; section = 0; draw(); message('New blank profile.'); };
+$('new').onclick = () => { if (dirty && !confirm('Discard unsaved changes and start a new profile?')) return; values = {}; sameMailingAddress = false; dirty = false; $('profileName').value = ''; $('profiles').value = ''; $('saveSSN').checked = false; showImportedLoans(); $('importReport').textContent = 'No file imported yet.'; section = 0; draw(); message('New blank profile.'); };
 $('delete').onclick = () => {
   const id = $('profiles').value; if (!id) { message('Choose a saved profile to delete.',true); return; }
   if (!confirm(`Delete saved profile “${profiles[id].name}” from this browser?`)) return;
@@ -183,6 +242,6 @@ window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); 
     fields.splice(fields.findIndex(f => f.key === 'Date of Birth'),0,{key:'SSN',label:'SSN - full number or last four digits',page:2});
     try { profiles = JSON.parse(localStorage.getItem(storageKey) || '{}'); if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) profiles = {}; }
     catch { profiles = {}; message('Saved profiles could not be read. You can still fill and download the form.',true); }
-    listProfiles(); draw();
+    listProfiles(); draw(); $('uploadText').disabled = false; $('textTemplate').disabled = false;
   } catch(e) { message(e.message,true); $('download').disabled = true; }
 })();

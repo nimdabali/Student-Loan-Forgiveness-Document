@@ -94,7 +94,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200, json.dumps({'fields': schema(), 'token': TOKEN}).encode(), 'application/json')
         elif self.path == '/original.pdf':
             self.respond(200, PDF.read_bytes(), 'application/pdf')
-        elif self.path in ['/', '/app.js', '/style.css', '/pdf-browser.js', '/schema.json', '/template.pdf', '/Consolidation-en-us.pdf', '/vendor/pdf-lib.min.js']:
+        elif self.path in ['/', '/app.js', '/text-import.js', '/style.css', '/pdf-browser.js', '/schema.json', '/template.pdf', '/Consolidation-en-us.pdf', '/vendor/pdf-lib.min.js']:
             import mimetypes
             filename = 'index.html' if self.path == '/' else self.path.lstrip('/')
             kind = mimetypes.guess_type(filename)[0] or 'application/octet-stream'

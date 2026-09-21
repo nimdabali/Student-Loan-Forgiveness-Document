@@ -11,7 +11,7 @@ DEST = ROOT / 'docs'
 
 def build():
     DEST.mkdir(exist_ok=True)
-    for filename in ['index.html', 'style.css', 'app.js', 'pdf-browser.js', 'Consolidation-en-us.pdf']:
+    for filename in ['index.html', 'style.css', 'app.js', 'text-import.js', 'pdf-browser.js', 'Consolidation-en-us.pdf']:
         shutil.copyfile(ROOT / filename, DEST / filename)
     shutil.copytree(ROOT / 'vendor', DEST / 'vendor', dirs_exist_ok=True)
     slots = []
