@@ -3,6 +3,26 @@ const $ = id => document.getElementById(id);
 const storageKey = 'consolidation-profiles-v1';
 let fields = [], slots = [], values = {}, section = 0, dirty = false, profiles = {};
 let sameMailingAddress = false;
+let paymentDetails = {amount: '', installments: '', dates: []};
+function loadPaymentDetails(saved = {}) {
+  paymentDetails = {amount: saved.amount || '', installments: saved.installments || '', dates: [...(saved.dates || [])]};
+  $('paymentAmount').value = paymentDetails.amount;
+  $('paymentInstallments').value = paymentDetails.installments;
+  drawPaymentDates();
+}
+function drawPaymentDates() {
+  const count = Number(paymentDetails.installments);
+  $('paymentDates').replaceChildren();
+  if (!Number.isInteger(count) || count < 1 || count > 120) return;
+  paymentDetails.dates.length = count;
+  for (let i = 0; i < count; i++) {
+    const wrap = document.createElement('div'), label = document.createElement('label'), input = document.createElement('input');
+    label.textContent = `Payment ${i + 1} date`; label.htmlFor = `payment-date-${i}`;
+    input.id = label.htmlFor; input.type = 'date'; input.value = paymentDetails.dates[i] || '';
+    input.oninput = () => { paymentDetails.dates[i] = input.value; dirty = true; };
+    wrap.append(label, input); $('paymentDates').append(wrap);
+  }
+}
 const states = 'AL:Alabama|AK:Alaska|AZ:Arizona|AR:Arkansas|CA:California|CO:Colorado|CT:Connecticut|DE:Delaware|DC:District of Columbia|FL:Florida|GA:Georgia|HI:Hawaii|ID:Idaho|IL:Illinois|IN:Indiana|IA:Iowa|KS:Kansas|KY:Kentucky|LA:Louisiana|ME:Maine|MD:Maryland|MA:Massachusetts|MI:Michigan|MN:Minnesota|MS:Mississippi|MO:Missouri|MT:Montana|NE:Nebraska|NV:Nevada|NH:New Hampshire|NJ:New Jersey|NM:New Mexico|NY:New York|NC:North Carolina|ND:North Dakota|OH:Ohio|OK:Oklahoma|OR:Oregon|PA:Pennsylvania|RI:Rhode Island|SC:South Carolina|SD:South Dakota|TN:Tennessee|TX:Texas|UT:Utah|VT:Vermont|VA:Virginia|WA:Washington|WV:West Virginia|WI:Wisconsin|WY:Wyoming|AS:American Samoa|GU:Guam|MP:Northern Mariana Islands|PR:Puerto Rico|VI:U.S. Virgin Islands'.split('|').map(s => s.split(':'));
 const isState = key => /^State(?:_\d+)?$/.test(key);
 const isSuffix = key => /^Name Suffix(?:_\d+)?$/.test(key);
@@ -125,6 +145,8 @@ function draw() {
   $('back').disabled = section === 0; $('next').disabled = section === sections.length-1; refreshProgress();
 }
 $('form').onsubmit = e => e.preventDefault();
+$('paymentAmount').oninput = () => { paymentDetails.amount = $('paymentAmount').value; dirty = true; };
+$('paymentInstallments').oninput = () => { paymentDetails.installments = $('paymentInstallments').value; drawPaymentDates(); dirty = true; };
 function showImportedLoans(loans = []) {
   $('importLoans').replaceChildren();
   loans.forEach(loan => {
@@ -168,7 +190,7 @@ $('textFile').onchange = async () => {
     if (file.size > 500000) throw new Error('Please choose a text file smaller than 500 KB.');
     const result = parseTextDetails(await file.text(), fields);
     if (dirty && !confirm('Replace unsaved entries with this borrower’s details? Saved profiles will remain available.')) return;
-    values = result.values; normalizeContactValues(); sameMailingAddress = false;
+    values = result.values; normalizeContactValues(); sameMailingAddress = false; loadPaymentDetails();
     $('profiles').value = ''; $('saveSSN').checked = false;
     $('profileName').value = [values['First Name'], values['Last Name']].filter(Boolean).join(' ') || file.name.replace(/\.txt$/i, '');
     section = 0; dirty = true; draw();
@@ -191,7 +213,8 @@ $('save').onclick = () => {
   const id = $('profiles').value || crypto.randomUUID();
   normalizeContactValues();
   const saved = {...values}; if (!$('saveSSN').checked) delete saved.SSN;
-  const updated = {...profiles, [id]: {name, values:saved, sameMailingAddress}};
+  if (!$('paymentAmount').reportValidity() || !$('paymentInstallments').reportValidity()) return;
+  const updated = {...profiles, [id]: {name, values:saved, sameMailingAddress, paymentDetails: {...paymentDetails, dates: [...paymentDetails.dates]}}};
   try { localStorage.setItem(storageKey,JSON.stringify(updated)); profiles = updated; listProfiles(id); dirty = false; message(`Saved “${name}” in this browser${$('saveSSN').checked ? ', including SSN' : ', without SSN'}.`); }
   catch { message('Could not save: browser storage is unavailable or full. Your current entries are still here.',true); }
 };
@@ -200,13 +223,14 @@ $('profiles').onchange = () => {
   const p = profiles[$('profiles').value]; if (!p) return;
   showImportedLoans(); $('importReport').textContent = 'Saved profile loaded.';
   values = {...p.values};
+  loadPaymentDetails(p.paymentDetails);
   normalizeContactValues();
   sameMailingAddress = p.sameMailingAddress === true;
   syncMailingAddress();
   $('profileName').value = p.name; $('saveSSN').checked = !!values.SSN; dirty = false; draw();
   message('Profile loaded. Update any details, then download your PDF.');
 };
-$('new').onclick = () => { if (dirty && !confirm('Discard unsaved changes and start a new profile?')) return; values = {}; sameMailingAddress = false; dirty = false; $('profileName').value = ''; $('profiles').value = ''; $('saveSSN').checked = false; showImportedLoans(); $('importReport').textContent = 'No file imported yet.'; section = 0; draw(); message('New blank profile.'); };
+$('new').onclick = () => { if (dirty && !confirm('Discard unsaved changes and start a new profile?')) return; values = {}; loadPaymentDetails(); sameMailingAddress = false; dirty = false; $('profileName').value = ''; $('profiles').value = ''; $('saveSSN').checked = false; showImportedLoans(); $('importReport').textContent = 'No file imported yet.'; section = 0; draw(); message('New blank profile.'); };
 $('delete').onclick = () => {
   const id = $('profiles').value; if (!id) { message('Choose a saved profile to delete.',true); return; }
   if (!confirm(`Delete saved profile “${profiles[id].name}” from this browser?`)) return;
