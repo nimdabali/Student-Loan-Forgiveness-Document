@@ -41,6 +41,15 @@ vm.runInContext(fs.readFileSync('sheets.js', 'utf8') + '\nglobalThis.api = sheet
   assert.equal(rows.length, 2);
   assert.equal(rows[1][headers.indexOf('SSN')], '1234');
   assert.equal(rows[0][headers.indexOf('Payment total (USD)')], '500');
+  // Upgrade a pre-card export sheet without changing existing rows or column order.
+  headers = headers.filter(h => !h.startsWith('Dummy card'));
+  const previous = JSON.stringify(rows);
+  const cardEntry = api.record(fields, {}, {dates: [], cardNumber:'0000000000000000', cardExpiry:'12/30', cardholderName:'Test Person'}, 'Dummy', false);
+  await api.append(cardEntry);
+  assert.equal(JSON.stringify(rows.slice(0, 2)), previous);
+  assert.equal(rows[2][headers.indexOf('Dummy card number')], '0000000000000000');
+  assert.equal(rows[2][headers.indexOf('Dummy card expiry')], '12/30');
+  assert.equal(rows[2][headers.indexOf('Dummy cardholder name')], 'Test Person');
   assert(calls.filter(c => c.url.includes(':append?')).every(c => c.url.includes('valueInputOption=RAW')));
   headers = ['Unrelated data'];
   await assert.rejects(api.append(second), /columns do not match/);

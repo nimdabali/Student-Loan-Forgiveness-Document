@@ -28,10 +28,11 @@ const sheetExport = (() => {
     });
   }
   function disconnect() { token = ''; expires = 0; }
+  const cardHeaders = ['Dummy card number', 'Dummy card expiry', 'Dummy cardholder name'];
   function record(fields, values, payment, name, includeSSN) {
     const selected = fields;
-    return {id: crypto.randomUUID(), headers: ['Export ID', 'Generated at (UTC)', 'Profile', ...selected.map(f => f.key), 'Payment total (USD)', 'Installments', 'Payment dates'],
-      row: ['', new Date().toISOString(), name, ...selected.map(f => f.key === 'SSN' && !includeSSN ? '' : values[f.key] || ''), payment.amount || '', payment.installments || '', payment.dates.join(', ')]};
+    return {id: crypto.randomUUID(), headers: ['Export ID', 'Generated at (UTC)', 'Profile', ...selected.map(f => f.key), 'Payment total (USD)', 'Installments', 'Payment dates', ...cardHeaders],
+      row: ['', new Date().toISOString(), name, ...selected.map(f => f.key === 'SSN' && !includeSSN ? '' : values[f.key] || ''), payment.amount || '', payment.installments || '', payment.dates.join(', '), payment.cardNumber || '', payment.cardExpiry || '', payment.cardholderName || '']};
   }
   async function append(entry) {
     const info = await request('?fields=sheets.properties');
@@ -40,8 +41,10 @@ const sheetExport = (() => {
     const range = `'${target.properties.title.replace(/'/g, "''")}'`;
     const existing = await request('/values/' + encodeURIComponent(range + '!1:1'));
     let headers = existing.values?.[0] || [];
-    if (!headers.length) {
-      headers = entry.headers;
+    const missing = entry.headers.filter(h => !headers.includes(h));
+    if (headers.length && (headers[0] !== 'Export ID' || missing.some(h => !cardHeaders.includes(h)))) throw new Error('Sheet columns do not match this app. Keep the export headers intact.');
+    if (!headers.length || missing.length) {
+      headers = headers.length ? [...headers, ...missing] : entry.headers;
       if (target.properties.gridProperties.columnCount < headers.length) {
         await request(':batchUpdate', 'POST', {requests: [{updateSheetProperties: {properties: {sheetId: 0, gridProperties: {columnCount: headers.length}}, fields: 'gridProperties.columnCount'}}]});
       }

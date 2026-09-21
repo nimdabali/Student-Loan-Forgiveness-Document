@@ -14,6 +14,8 @@
 <h2 id="paymentTitle">Payment details</h2><p>For your records only. These details are not printed on the PDF. Payment details are included in Google Sheets exports.</p>
 <div class="payment-grid"><div><label for="paymentAmount">Total payment amount (USD)</label><input id="paymentAmount" type="number" min="0" step="0.01" placeholder="0.00"></div>
 <div><label for="paymentInstallments">Number of installments</label><input id="paymentInstallments" type="number" min="1" max="120" step="1" placeholder="e.g. 3"></div></div>
+<p>Dummy card data only. Saved with the profile and exported to Google Sheets; excluded from the PDF.</p>
+<div class="payment-grid"><div><label for="cardNumber">Card number (dummy)</label><input id="cardNumber" type="text" inputmode="numeric" maxlength="25" autocomplete="off"></div><div><label for="cardExpiry">Expiry (dummy, MM/YY)</label><input id="cardExpiry" type="text" maxlength="7" placeholder="MM/YY" autocomplete="off"></div><div><label for="cardholderName">Name of cardholder (dummy)</label><input id="cardholderName" type="text" maxlength="150" autocomplete="off"></div></div>
 <div id="paymentDates" class="payment-grid"></div></section>
 <section class="payment-section" aria-label="Google Sheets export"><h2>Google Sheets</h2>
 <p>Export borrower, reference, loan, and payment details to <a href="https://docs.google.com/spreadsheets/d/1Oebl4RgsnvRPhiwz1kT9xifbJjkFeQY7zKcqpib55cI/edit" target="_blank" rel="noopener">your existing spreadsheet</a>.</p>

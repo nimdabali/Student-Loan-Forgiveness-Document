@@ -3,11 +3,12 @@ const $ = id => document.getElementById(id);
 const storageKey = 'consolidation-profiles-v1';
 let fields = [], slots = [], values = {}, section = 0, dirty = false, profiles = {};
 let sameMailingAddress = false;
-let paymentDetails = {amount: '', installments: '', dates: []};
+let paymentDetails = {amount: '', installments: '', dates: [], cardNumber: '', cardExpiry: '', cardholderName: ''};
 function loadPaymentDetails(saved = {}) {
-  paymentDetails = {amount: saved.amount || '', installments: saved.installments || '', dates: [...(saved.dates || [])]};
+  paymentDetails = {amount: saved.amount || '', installments: saved.installments || '', dates: [...(saved.dates || [])], cardNumber: saved.cardNumber || '', cardExpiry: saved.cardExpiry || '', cardholderName: saved.cardholderName || ''};
   $('paymentAmount').value = paymentDetails.amount;
   $('paymentInstallments').value = paymentDetails.installments;
+  for (const key of ['cardNumber', 'cardExpiry', 'cardholderName']) $(key).value = paymentDetails[key];
   drawPaymentDates();
 }
 function drawPaymentDates() {
@@ -145,6 +146,7 @@ function draw() {
   $('back').disabled = section === 0; $('next').disabled = section === sections.length-1; refreshProgress();
 }
 $('form').onsubmit = e => e.preventDefault();
+for (const key of ['cardNumber', 'cardExpiry', 'cardholderName']) $(key).oninput = () => { paymentDetails[key] = $(key).value; dirty = true; };
 $('paymentAmount').oninput = () => { paymentDetails.amount = $('paymentAmount').value; dirty = true; };
 $('paymentInstallments').oninput = () => { paymentDetails.installments = $('paymentInstallments').value; drawPaymentDates(); dirty = true; };
 function showImportedLoans(loans = []) {
