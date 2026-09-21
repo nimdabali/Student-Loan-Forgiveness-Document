@@ -12,7 +12,7 @@ DEST = ROOT / 'docs'
 
 def build():
     DEST.mkdir(exist_ok=True)
-    for filename in ['index.html', 'style.css', 'app.js', 'text-import.js', 'pdf-browser.js', 'Consolidation-en-us.pdf']:
+    for filename in ['index.html', 'style.css', 'app.js', 'sheets.js', 'text-import.js', 'pdf-browser.js', 'Consolidation-en-us.pdf']:
         shutil.copyfile(ROOT / filename, DEST / filename)
     shutil.copytree(ROOT / 'vendor', DEST / 'vendor', dirs_exist_ok=True)
     slots = []
@@ -29,7 +29,7 @@ def build():
     (DEST / 'schema.json').write_text(json.dumps({'fields': schema(), 'slots': slots}), encoding='utf-8')
     # A changed asset gets a new URL, preventing new markup from using cached JS.
     html = (DEST / 'index.html').read_text(encoding='utf-8')
-    for filename in ['style.css', 'app.js', 'text-import.js', 'pdf-browser.js', 'vendor/pdf-lib.min.js']:
+    for filename in ['style.css', 'app.js', 'sheets.js', 'text-import.js', 'pdf-browser.js', 'vendor/pdf-lib.min.js']:
         version = hashlib.sha256((DEST / filename).read_bytes()).hexdigest()[:12]
         html = html.replace(f'./{filename}"', f'./{filename}?v={version}"')
     (DEST / 'index.html').write_text(html, encoding='utf-8')

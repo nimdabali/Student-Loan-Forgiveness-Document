@@ -2,7 +2,17 @@
 
 Public app: https://nimdabali.github.io/Student-Loan-Forgiveness-Document/
 
-The GitHub Pages version runs entirely in the visitor's browser. Entered details are not uploaded to a PDF server. Saved profiles stay in that browser and are stored unencrypted. SSN saving is optional. Localhost profiles do not automatically transfer to the public website.
+The GitHub Pages version generates PDFs entirely in the visitor's browser. Saved profiles stay in that browser and are stored unencrypted. SSN saving is optional. When automatic Google Sheets export is enabled, borrower, reference, loan, and payment details are sent to the configured spreadsheet through Google's API; SSN export is a separate opt-in. Localhost profiles do not automatically transfer to the public website.
+
+## Google Sheets and payments
+
+Click **Connect Google Sheets** and sign in with an account that can edit the configured spreadsheet. Google Sheets API must be enabled in the OAuth project's Google Cloud console, and the account must be an authorized test user while the project is in testing. Authorized JavaScript origins must include `https://nimdabali.github.io` and, for local use, `http://localhost:8765` or `http://127.0.0.1:8765`.
+
+Automatic export appends one record after each successful PDF generation to the existing tab with `gid=0`. It initializes column headers on a blank first row and checks existing headers before writing. It never creates another spreadsheet. Payment amount, installments, and calendar dates are saved with profiles but never passed to PDF generation. No card fields are collected.
+
+Access tokens stay in memory. Reconnect after reloading the page or when the Google session expires. If export fails, the PDF remains downloaded: use **Retry pending export** before closing the page. The pending record stays only in memory; retries check its unique ID before appending. Do not edit the Export ID column. Concurrent clients are not transactionally coordinated. Uncheck automatic export when you intentionally want a PDF-only download.
+
+Run `node test_sheets.js` for mocked Google API checks. Live consent and a real export must also be verified by the spreadsheet owner.
 
 ## Use the app
 

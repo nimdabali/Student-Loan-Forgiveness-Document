@@ -238,7 +238,38 @@ $('delete').onclick = () => {
   try { localStorage.setItem(storageKey,JSON.stringify(updated)); profiles = updated; listProfiles(); message('Saved profile deleted. Current form entries remain until you choose New or close the app.'); }
   catch { message('Could not delete the saved profile.',true); }
 };
+let pendingExport = null;
+$('connectSheets').onclick = async () => {
+  $('connectSheets').disabled = true;
+  try { await sheetExport.connect(); $('sheetsStatus').textContent = 'Google authorized. The next export will write to your existing Sheet.'; }
+  catch (error) { $('sheetsStatus').textContent = error.message; }
+  finally { $('connectSheets').disabled = false; }
+};
+$('disconnectSheets').onclick = () => { sheetExport.disconnect(); $('sheetsStatus').textContent = 'Disconnected from Google Sheets.'; };
+async function sendPendingExport() {
+  $('retryExport').disabled = true;
+  try {
+    await sheetExport.append(pendingExport);
+    pendingExport = null; $('retryExport').hidden = true;
+    $('sheetsStatus').textContent = 'Export confirmed: one record saved to your existing Google Sheet.';
+    message('PDF downloaded and data exported to Google Sheets.');
+  } catch (error) {
+    $('retryExport').hidden = false;
+    $('sheetsStatus').textContent = `${error.message} The PDF was downloaded, but export is not confirmed. Retry before closing this page.`;
+    message('PDF downloaded; Google Sheets export needs attention.', true);
+  } finally { $('retryExport').disabled = false; }
+}
+$('retryExport').onclick = sendPendingExport;
 $('download').onclick = async () => {
+  if (pendingExport) { message('Retry the pending Google Sheets export before generating another PDF.', true); return; }
+  if ($('autoExport').checked && !sheetExport.connected()) { message('Connect Google Sheets before generating the PDF, or uncheck automatic export for a PDF-only download.', true); $('connectSheets').focus(); return; }
+  if (!$('paymentAmount').reportValidity() || !$('paymentInstallments').reportValidity()) return;
+  if (paymentDetails.amount || paymentDetails.installments) {
+    const count = Number(paymentDetails.installments);
+    if (!paymentDetails.amount || !Number.isInteger(count) || count < 1 || count > 120 || Array.from({length: count}, (_, i) => paymentDetails.dates[i]).some(d => !d)) {
+      message('Complete the payment amount, installment count, and each payment date before downloading.', true); return;
+    }
+  }
   normalizeContactValues();
   const invalidPhone = fields.find(f => isPhone(f.key) && values[f.key] && values[f.key] !== 'N/A' && !/^\(\d{3}\) \d{3}-\d{4}$/.test(values[f.key]));
   if (invalidPhone) {
@@ -248,16 +279,19 @@ $('download').onclick = async () => {
     message('Please correct the highlighted phone number before downloading.', true); return;
   }
   $('download').disabled = true; message('Preparing your PDF…');
+  const pdfValues = {...values};
+  const exportRecord = $('autoExport').checked ? sheetExport.record(fields, pdfValues, paymentDetails, $('profileName').value, $('exportSSN').checked) : null;
   try {
     const response = await fetch('./template.pdf');
     if (!response.ok) throw new Error('Could not load the PDF template. Please reload and try again.');
-    const bytes = await createFilledPDF(values, slots, await response.arrayBuffer());
+    const bytes = await createFilledPDF(pdfValues, slots, await response.arrayBuffer());
     const url = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'})); const a = document.createElement('a'); a.href = url; a.download = 'Consolidation-filled.pdf'; a.click(); setTimeout(() => URL.revokeObjectURL(url),60000);
     message('PDF downloaded with your name on the signature line and your full or masked SSN. Review all entries and any separate required forms.');
+    if (exportRecord) { pendingExport = exportRecord; await sendPendingExport(); }
   } catch (e) { message(e.message || 'Download failed. Please reload the page and try again.',true); }
   finally { $('download').disabled = false; }
 };
-window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (dirty || pendingExport) { e.preventDefault(); e.returnValue = ''; } });
 async function initializeApp() {
   $('retryLoad').hidden = true;
   $('uploadState').textContent = 'Loading form fields…';
