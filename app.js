@@ -243,7 +243,11 @@ $('delete').onclick = () => {
 let pendingExport = null;
 $('connectSheets').onclick = async () => {
   $('connectSheets').disabled = true;
-  try { await sheetExport.connect(); $('sheetsStatus').textContent = 'Google authorized. The next export will write to your existing Sheet.'; }
+  try {
+    await sheetExport.connect();
+    const destination = await sheetExport.checkAccess();
+    $('sheetsStatus').textContent = `Connected to ${destination.title}, tab ${destination.tab}. Generate a PDF to export its data.`;
+  }
   catch (error) { $('sheetsStatus').textContent = error.message; }
   finally { $('connectSheets').disabled = false; }
 };
@@ -251,9 +255,10 @@ $('disconnectSheets').onclick = () => { sheetExport.disconnect(); $('sheetsStatu
 async function sendPendingExport() {
   $('retryExport').disabled = true;
   try {
-    await sheetExport.append(pendingExport);
+    const saved = await sheetExport.append(pendingExport);
     pendingExport = null; $('retryExport').hidden = true;
-    $('sheetsStatus').textContent = 'Export confirmed: one record saved to your existing Google Sheet.';
+    $('sheetsStatus').textContent = `Export confirmed at ${saved.range}. `;
+    const link = document.createElement('a'); link.href = saved.url; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open saved row'; $('sheetsStatus').append(link);
     message('PDF downloaded and data exported to Google Sheets.');
   } catch (error) {
     $('retryExport').hidden = false;

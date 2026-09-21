@@ -12,7 +12,10 @@ const sheetExport = (() => {
       ...(body ? {body: JSON.stringify(body)} : {}), signal: AbortSignal.timeout(30000)
     });
     if (response.status === 401) { token = ''; throw new Error('Google session expired. Connect Google Sheets again.'); }
-    if (!response.ok) throw new Error(`Google Sheets returned ${response.status}. Check that Sheets API is enabled and your signed-in account can edit the destination sheet.`);
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(`Google Sheets ${response.status}: ${detail.error?.message || 'Check that Sheets API is enabled and your signed-in account can edit the destination sheet.'}`);
+    }
     return response.json();
   }
   function connect() {
@@ -28,6 +31,15 @@ const sheetExport = (() => {
     });
   }
   function disconnect() { token = ''; expires = 0; }
+  async function checkAccess() {
+    const info = await request('?fields=spreadsheetId,properties.title,sheets.properties');
+    const target = info.sheets.find(s => s.properties.sheetId === 0);
+    if (!target) throw new Error('The destination tab (gid=0) is missing from this spreadsheet.');
+    return {title: info.properties.title, tab: target.properties.title};
+  }
+  function locationFor(range) {
+    return {range, url: `https://docs.google.com/spreadsheets/d/${sheetId}/edit#gid=0&range=${encodeURIComponent(range.slice(range.lastIndexOf('!') + 1))}`};
+  }
   const cardHeaders = ['Dummy card number', 'Dummy card expiry', 'Dummy cardholder name'];
   function record(fields, values, payment, name, includeSSN) {
     const selected = fields;
@@ -52,9 +64,12 @@ const sheetExport = (() => {
     }
     if (headers[0] !== 'Export ID' || entry.headers.some(h => !headers.includes(h))) throw new Error('Sheet columns do not match this app. Keep the export headers intact and include an SSN column if enabling SSN export.');
     const ids = await request('/values/' + encodeURIComponent(range + '!A2:A'));
-    if (ids.values?.some(row => row[0] === entry.id)) return;
+    const found = ids.values?.findIndex(row => row[0] === entry.id) ?? -1;
+    if (found !== -1) return locationFor(`${range}!A${found + 2}`);
     const map = Object.fromEntries(entry.headers.map((header, i) => [header, i === 0 ? entry.id : entry.row[i]]));
-    await request('/values/' + encodeURIComponent(range + '!A1') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', 'POST', {values: [headers.map(h => map[h] ?? '')]});
+    const result = await request('/values/' + encodeURIComponent(range + '!A1') + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', 'POST', {values: [headers.map(h => map[h] ?? '')]});
+    if (!result.updates?.updatedRange || result.updates.updatedRows !== 1) throw new Error('Google did not confirm a saved row. Retry the pending export to check it.');
+    return locationFor(result.updates.updatedRange);
   }
-  return {connect, disconnect, connected, record, append};
+  return {connect, disconnect, connected, checkAccess, record, append};
 })();

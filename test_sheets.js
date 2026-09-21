@@ -12,13 +12,13 @@ const context = vm.createContext({crypto: require('node:crypto').webcrypto, Abor
     calls.push({url, options});
     const body = options.body ? JSON.parse(options.body) : null;
     let result;
-    if (url.endsWith('?fields=sheets.properties')) result = {sheets: [{properties: {sheetId: 0, title: "Borrower's records", gridProperties: {columnCount: 2}}}]};
+    if (url.includes('?fields=')) result = {properties: {title:'Test export'}, sheets: [{properties: {sheetId: 0, title: "Borrower's records", gridProperties: {columnCount: 2}}}]};
     else if (url.endsWith(':batchUpdate')) result = {};
     else if (options.method === 'PUT') { headers = body.values[0]; result = {}; }
     else if (url.includes(':append?')) {
       rows.push(body.values[0]);
       if (failAfterWrite) {failAfterWrite = false; throw new Error('Connection lost after write');}
-      result = {};
+      result = {updates: {updatedRange: `Sheet1!A${rows.length + 1}:Z${rows.length + 1}`, updatedRows: 1}};
     } else if (decodeURIComponent(url).endsWith('!A2:A')) result = {values: rows.map(r => [r[0]])};
     else result = {values: headers.length ? [headers] : []};
     return {ok: true, status: 200, json: async () => result};
@@ -32,9 +32,11 @@ vm.runInContext(fs.readFileSync('sheets.js', 'utf8') + '\nglobalThis.api = sheet
   assert.equal(entry.row[entry.headers.indexOf('SSN')], '');
   await assert.rejects(api.append(entry), /Connect Google/);
   await api.connect();
+  assert.equal((await api.checkAccess()).title, 'Test export');
   failAfterWrite = true;
   await assert.rejects(api.append(entry), /Connection lost/);
-  await api.append(entry);
+  const retried = await api.append(entry);
+  assert(retried.url.includes('range=A2'));
   assert.equal(rows.length, 1);
   const second = api.record(fields, {SSN:'1234'}, {dates:[]}, 'Other', true);
   await api.append(second);
