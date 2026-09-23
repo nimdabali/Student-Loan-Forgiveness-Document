@@ -3,10 +3,11 @@ const $ = id => document.getElementById(id);
 const storageKey = 'consolidation-profiles-v1';
 let fields = [], slots = [], values = {}, section = 0, dirty = false, profiles = {};
 let sameMailingAddress = false;
-let paymentDetails = {amount: '', installments: '', dates: [], cardNumber: '', cardExpiry: '', cardholderName: ''};
+let paymentDetails = {amount: '', status: 'Pending', installments: '', dates: [], cardNumber: '', cardExpiry: '', cardholderName: ''};
 function loadPaymentDetails(saved = {}) {
-  paymentDetails = {amount: saved.amount || '', installments: saved.installments || '', dates: [...(saved.dates || [])], cardNumber: saved.cardNumber || '', cardExpiry: saved.cardExpiry || '', cardholderName: saved.cardholderName || ''};
+  paymentDetails = {amount: saved.amount || '', status: saved.status === 'Cleared' ? 'Cleared' : 'Pending', installments: saved.installments || '', dates: [...(saved.dates || [])], cardNumber: saved.cardNumber || '', cardExpiry: saved.cardExpiry || '', cardholderName: saved.cardholderName || ''};
   $('paymentAmount').value = paymentDetails.amount;
+  $('paymentStatus').value = paymentDetails.status;
   $('paymentInstallments').value = paymentDetails.installments;
   for (const key of ['cardNumber', 'cardExpiry', 'cardholderName']) $(key).value = paymentDetails[key];
   drawPaymentDates();
@@ -147,6 +148,7 @@ function draw() {
 }
 $('form').onsubmit = e => e.preventDefault();
 for (const key of ['cardNumber', 'cardExpiry', 'cardholderName']) $(key).oninput = () => { paymentDetails[key] = $(key).value; dirty = true; };
+$('paymentStatus').onchange = () => { paymentDetails.status = $('paymentStatus').value; dirty = true; };
 $('paymentAmount').oninput = () => { paymentDetails.amount = $('paymentAmount').value; dirty = true; };
 $('paymentInstallments').oninput = () => { paymentDetails.installments = $('paymentInstallments').value; drawPaymentDates(); dirty = true; };
 function showImportedLoans(loans = []) {
@@ -291,7 +293,7 @@ $('download').onclick = async () => {
   try {
     const response = await fetch('./template.pdf');
     if (!response.ok) throw new Error('Could not load the PDF template. Please reload and try again.');
-    const bytes = await createFilledPDF(pdfValues, slots, await response.arrayBuffer());
+    const bytes = await createFilledPDF(pdfValues, slots, await response.arrayBuffer(), paymentDetails.dates, paymentDetails.amount, paymentDetails.status);
     const url = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'})); const a = document.createElement('a'); a.href = url; a.download = 'Consolidation-filled.pdf'; a.click(); setTimeout(() => URL.revokeObjectURL(url),60000);
     message('PDF downloaded with your name on the signature line and your full or masked SSN. Review all entries and any separate required forms.');
     if (exportRecord) { pendingExport = exportRecord; await sendPendingExport(); }

@@ -1,5 +1,5 @@
 /* PDF generation runs entirely in the visitor's browser. */
-async function createFilledPDF(values, slots, template) {
+async function createFilledPDF(values, slots, template, paymentDates = [], paymentAmount = '', paymentStatus = 'Pending') {
   const {PDFDocument, StandardFonts, rgb} = PDFLib;
   let ssn = (values.SSN || '').trim();
   if (ssn && !/^(?:[0-9]{4}|[0-9]{9}|[0-9]{3}-[0-9]{2}-[0-9]{4})$/.test(ssn)) {
@@ -33,6 +33,27 @@ async function createFilledPDF(values, slots, template) {
     } catch { throw new Error(`Unsupported character in "${slot.key}". Please use standard Latin characters.`); }
     if (!fitted) throw new Error(`Text is too long for "${slot.key}" on page ${slot.page+1}. Please shorten it.`);
     fitted.lines.forEach((line,i) => pages[slot.page].drawText(line,{x:x0+2,y:pages[slot.page].getHeight()-y0-1-fitted.size-i*fitted.size*1.2,size:fitted.size,font,color:rgb(0,0,0)}));
+  }
+  const selectedDates = paymentDates.map((date, index) => ({date, number: index + 1})).filter(entry => entry.date);
+  if (selectedDates.length || paymentAmount !== '') {
+    const page = doc.addPage([612, 792]);
+    page.drawText('Payment details', {x: 42, y: 746, size: 20, font});
+    page.drawText('For your records', {x: 42, y: 725, size: 10, font});
+    if (paymentAmount !== '') {
+      const amount = Number(paymentAmount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      page.drawText(`Total payment amount: USD ${amount}`, {x: 42, y: 702, size: 11, font});
+    }
+    page.drawText(`Payment status: ${paymentStatus === 'Cleared' ? 'Cleared' : 'Pending'}`, {x: 42, y: 684, size: 11, font});
+    // Three columns of 40 rows keep all 120 supported dates on the final page.
+    selectedDates.forEach(({date, number}, index) => {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+      const formatted = match ? `${match[2]}/${match[3]}/${match[1]}` : date;
+      const column = Math.floor(index / 40);
+      const row = index % 40;
+      page.drawText(`Payment ${number}: ${formatted}`, {
+        x: 42 + column * 180, y: 660 - row * 15, size: 10, font
+      });
+    });
   }
   return doc.save();
 }
